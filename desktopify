@@ -35,19 +35,6 @@ EOM
     glib-compile-schemas /usr/share/glib-2.0/schemas/
   fi
 
-  cat <<EOM > "/boot/firmware/usercfg.txt"
-# Place "config.txt" changes (dtparam, dtoverlay, disable_overscan, etc.) in
-# this file. Please refer to the README file for a description of the various
-# configuration files on the boot partition.
-#
-disable_overscan=1
-dtoverlay=vc4-fkms-v3d
-dtparam=audio=on
-hdmi_drive=2
-EOM
-
-  echo "net.ifnames=0 dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=LABEL=writable rootfstype=ext4 elevator=deadline rootwait fixrtc quiet splash plymouth.ignore-serial-consoles" > "/boot/firmware/cmdline.txt"
-
   # Enable hardware acceleration in Firefox.
   # Append to Ubuntu MATEs existing Firefox default overrides or create and override for the other flavours
   if [ -e /usr/lib/firefox/defaults/pref/all-ubuntumate.js ] && [ -e /usr/lib/firefox/ubuntumate.cfg ]; then
@@ -64,21 +51,15 @@ EOM
 
 function configure_network() {
   echo "[+] Will now configure network"
-  # Disable cloud-init from managing the network
-  echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
 
   # Instruct netplan to hand all network management to NetworkManager
+  mkdir -p /etc/netplan
   cat <<EOM > /etc/netplan/01-network-manager-all.yaml
 # Let NetworkManager manage all devices on this system
 network:
   version: 2
   renderer: NetworkManager
 EOM
-
-  # Disable Wifi Powersaving to improve Pi WiFi performance
-  if [ -e /etc/NetworkManager/conf.d/default-wifi-powersave-on.conf ]; then
-    sed -i 's/wifi.powersave = 3/wifi.powersave = 2/' /etc/NetworkManager/conf.d/default-wifi-powersave-on.conf
-  fi
 }
 
 function enable_oem() {
@@ -170,7 +151,7 @@ case "${DESKTOP_ENVIRONMENT}" in
   ubuntu-budgie)
     echo "[+] Specified Ubuntu Budgie desktop"
     DESKTOP_PACKAGES="ubuntu-budgie-desktop"
-    CLASSIC_SNAPS=(ubuntu-budgie-welcome)
+    # CLASSIC_SNAPS=(ubuntu-budgie-welcome)
     shift;;
   ubuntu-kylin)
     echo "[+] Specified Ubunty Kylin desktop"
@@ -219,8 +200,7 @@ PI_MODEL=$(grep ^Model /proc/cpuinfo  | cut -d':' -f2- | sed 's/ R/R/')
 if [[ "${PI_MODEL}" == *"Raspberry Pi"* ]]; then
   echo "[+] Configuring your ${PI_MODEL}"
 else
-  echo "[!] This is not a Raspberry Pi. Quitting!"
-  exit 1
+  echo "[~] This is not a Raspberry Pi. Continuing."
 fi
 
 # Check if we're running Ubuntu
@@ -238,7 +218,7 @@ if [ "${CODENAME}" != "focal" ]; then
 fi
 
 # Do the installation
-HARDWARE_PACKAGES="libgles1 libopengl0 libxvmc1 pi-bluetooth libgpiod-dev python3-libgpiod python3-gpiozero"
+HARDWARE_PACKAGES="libgles1 libopengl0 libxvmc1 libgpiod-dev python3-libgpiod python3-gpiozero"
 
 #Check if system already has a desktop installed
 if [ "$(env LANG=C apt list --installed ${DESKTOP_PACKAGES} 2>/dev/null | grep installed)" ] && [ "${FORCE}" -eq 0 ]; then
